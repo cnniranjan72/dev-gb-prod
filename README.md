@@ -42,20 +42,67 @@ candidate publications and shades the ones a trader could/couldn't know.
 
 ## 4. Architecture
 
+### 4.1 Files and directories (complete repo tree)
+
 ```
+README.md                 this file (problem → decisions → data → run → tests → deployment)
+PROJECT_STATUS.md         engineering status log
+pyproject.toml / backend/requirements.txt   Python dependencies (Vercel runtime reads pyproject)
+.env.example              documented environment variables (copy to .env for dev)
+vercel.json / api/index.py / .vercelignore  one-project Vercel build: SPA + FastAPI serverless
+.github/workflows/ci.yml  CI: pytest backend + frontend production build on push/PR
+
+backend/
+  app/main.py             FastAPI app: lifespan dataset load, CORS, error handler, routers
+  app/core/config.py      pydantic-settings (env: WINDLENS_* — see .env.example)
+  app/schemas/dtos.py     Pydantic response models (mirrored by frontend/src/lib/api.ts)
+  app/api/routes.py       analytics endpoints (health | metadata | summary | series | vintages | accuracy)
+  app/api/auth_routes.py  JWT auth + account management (login | me | users CRUD)
+  app/api/state.py        singleton dataset holder (lifespan/test-injection)
+  app/services/
+    elexon_client.py      BMRS HTTP client (timeouts, retries, pagination)
+    datasource.py         snapshot | live mode resolution
+    loader.py             record normalization (WIND-only filter, numeric policy) + dedupe
+    conventions.py        UTC/London conversions, hour-ending labels, settlement dates
+    dataset.py            ForecastDataset (interval points, cutoff per interval)
+    vintage.py            CAR of the domain: cutoff presets + select_forecast + vintage ladder
+    metrics.py            MAE / RMSE / bias / error histogram (fixed zero-centred bins)
+    accuracy.py           per-day/month rollups, coverage stats, by-hour panel
+    security.py           PBKDF2 hashing + HS256 JWT + require_role dependency
+    users.py              JSON user store with seeded demo accounts (in-memory fallback)
+  tests/                  60 pytest cases (fixtures.py builds a synthetic month)
+  pytest.ini / Dockerfile / requirements.txt
+
 frontend/                 React 19 + TypeScript + Vite + Tailwind 4 + Recharts
-src/lib/api.ts            typed client (mirrors backend DTOs, JWT attach + 401 handling)
-src/components/           LoginView · ForecastChart · VintageExplorer · AccuracyPanels · Header
-backend/app/services/     conventions · loader · vintage · metrics · dataset · accuracy
-                          elexon_client · datasource (snapshot|live) · security (PBKDF2+JWT) · users (RBAC store)
-backend/app/api/          FastAPI routes (health | metadata | summary | series | vintages | accuracy | auth)
-backend/tests/            60 pytest cases on a hand-crafted synthetic month + auth/RBAC regressions
-scripts/                  inspect_data.py · build_snapshot.py · audit_trace.py (independent raw-data verification)
-data/snapshots/latest     snapshot + manifest (checksummed)
-docs/                     DATA_INVESTIGATION.md · DEMO_SCRIPT.md · INTERVIEW_PREPARATION.md · PRE_SUBMISSION_AUDIT.md
+  src/lib/api.ts          typed API client (auth token attach, 401 handling, demo creds aware)
+  src/lib/format.ts       MW/percent/time display helpers
+  src/components/         LoginView · Header (+SessionBadge) · ForecastChart
+                          VintageExplorer · AccuracyPanels · ui (Card/Chip/StatCard)
+  src/App.tsx             dashboard state machine (date, cutoff preset/custom, interval)
+  vite.config.ts / tsconfig*.json / Dockerfile (nginx) / package.json
+
+data/
+  raw/                    persisted BMRS JSON responses (offline rebuild source)
+  snapshots/latest/       fuelhh_wind.json · windfor.json · manifest.json (checksums+policies)
+
+scripts/
+  build_snapshot.py       rebuilds snapshot from raw/ or live fetch (--live persists to raw/)
+  inspect_data.py         ad-hoc snapshot sanity queries
+  audit_trace.py          INDEPENDENT verification: re-derives selection + metrics from raw files
+
+docs/
+  DATA_INVESTIGATION.md   source schema, alignment sweep, retrieval journal
+  DEMO_SCRIPT.md          two-part recording script (customer ≤5 min, tech ≤5 min)
+  INTERVIEW_PREPARATION.md  27 adversarial Q&A grounded in the actual code
+  PRE_SUBMISSION_AUDIT.md   evidence-first audit findings (P0…P3)
+  FINAL_READINESS_REPORT.md verdict + remaining manual actions
+  data_investigation_findings.json  machine-readable findings
+
+compose.yaml / compose/nginx.conf / backend+frontend Dockerfiles / .dockerignore
+vercel/python-note.md     notes on the Vercel Python runtime choice
 ```
 
-**Auth & RBAC** — `/api/auth/login` issues an HS256 JWT (24 h TTL); passwords are stored
+### 4.2 Auth & RBAC — `/api/auth/login` issues an HS256 JWT (24 h TTL); passwords are stored
 as PBKDF2-HMAC-SHA256 (210k iterations, per-user salt). Roles `viewer < analyst < admin`
 gate the analytics endpoints; `/api/health`, docs and the login endpoint stay public.
 Seeded demo accounts (documented for reproducibility, overridable by env):
