@@ -1,0 +1,24 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      WINDLENS_DATA_MODE: snapshot
+      WINDLENS_SNAPSHOT_DIR: /srv/data/snapshots/latest
+      WINDLENS_LOG_LEVEL: INFO
+      WINDLENS_CORS_ORIGINS: "*"
+    # Publish the API directly too, so Postman-style checks are easy:
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    depends_on:
+      - backend
+    ports:
+      - "8085:80"
+    restart: unless-stopped

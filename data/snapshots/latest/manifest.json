@@ -1,0 +1,53 @@
+{
+  "source": "Elexon BMRS v1 API; /datasets/FUELHH/stream (fuelType=WIND, settlementDate 2026-01-01..2026-01-31) and /datasets/WINDFOR/stream (publishDateTimeFrom=2025-12-30T00:00Z to 2026-02-01T00:00Z)",
+  "retrieved_at_utc": "2026-10-23T00:00:00Z",
+  "period": {
+    "settlement_from": "2026-01-01",
+    "settlement_to": "2026-01-31",
+    "publication_window_utc": [
+      "2025-12-30T00:00:00+00:00",
+      "2026-02-01T00:00:00+00:00"
+    ]
+  },
+  "counts": {
+    "fuelhh_wind_rows": 1488,
+    "windfor_rows": 19272,
+    "windfor_publishes": 264,
+    "distinct_actual_intervals": 1488,
+    "expected_halfhours": 1488
+  },
+  "processing": [
+    "filter fuelType == 'WIND' (server-side on FUELHH retrieval)",
+    "parse ISO-8601 UTC timestamps; settlement fields are Europe/London",
+    "dedupe FUELHH per startTime: latest publishTime wins (re-release policy)",
+    "dedupe WINDFOR per (publishTime, startTime): later source order wins",
+    "no rescaling or gap-filling; missing values stay missing"
+  ],
+  "alignment_convention": "WINDFOR startTime T labels the hour ENDING at T (interval [T-1h, T)); hourly MW applied to both half-hours of that hour. Empirically resolved on January 2026 data (docs/DATA_INVESTIGATION.md); raw labels retained.",
+  "cutoff_assumption": {
+    "default_preset": "day_ahead_1030",
+    "presets": [
+      "day_ahead_1030",
+      "day_ahead_gate_0950",
+      "intraday_auction_1730"
+    ],
+    "rationale": "Day-ahead procurement finalisation after the N2EX day-ahead auction results publish (gate 09:50 GMT D-1, results by 10:00 GMT; Nord Pool). Analytical assumption, configurable per request."
+  },
+  "invariants": {
+    "expected_halfhours": 1488,
+    "actual_rows": 1488,
+    "distinct_intervals": 1488,
+    "windfor_rows": 19272,
+    "windfor_publishes": 264,
+    "missing_halfhours": [],
+    "problems": []
+  },
+  "checksums": {
+    "fuelhh_wind.json": "085c112a01898fc3a80ee24d59a6531d7a80693a6ffa8174993314c935ca93c5",
+    "windfor.json": "3e59c8cd6558a8a7e13583bfee09d14872c7f140d112abb34e27b2b53bf3940b"
+  },
+  "notes": [
+    "Systematic view difference: WINDFOR (system-operator national view incl. embedded wind) ran ~+16% above FUELHH WIND (settlement-visible BM wind) in Jan-2026 backfills. Metrics are reported on the two mandated datasets as-is.",
+    "Analysis period: January 2026 (GB procurement month for the challenge)."
+  ]
+}

@@ -1,0 +1,16 @@
+.venv/
+node_modules/
+frontend/dist/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+.DS_Store
+.env
+
+.vercel
+.env*
+vercel_jwt_secret.txt
+data/auth/
+data/snapshots/auth/
+backend/.pytest_cache/
